@@ -2,13 +2,15 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-from subprocess import call
 import logging
 import argparse
 import configparser
+from stack import YowsupKirppariStack
+import time
+import schedule
 
 logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
-
+global_config = None
 
 class Kirppari():
     headers = {
@@ -27,8 +29,7 @@ class Kirppari():
     sheet_list = {}
     sale_list = {}
 
-    def __init__(self, config_path, target=""):
-        config = self.getConfig(config_path)
+    def __init__(self, config, stack, target=""):
         self.headers['Cookie'] = 'PHPSESSID=' + config['PHPSESSID']
         self.login_url += '&username=' + config['username'] + '&password=' + config['password']
         if (len(target) == 0):
@@ -50,17 +51,6 @@ class Kirppari():
         print("DID NOT FIND SHEET")
         print(self.sheet_list)
         return None
-
-    def send_msg(self, text):
-        if (len(self.target) == 0):
-            return
-        cmd = '/home/pi/yowsup/yowsup-cli demos --config /home/pi/yowsup/yowsup-cli.config -y -tt ' + self.target + ' -mm'
-        list = cmd.split()
-        list.append(text)
-        try:
-            call(list, timeout=20)
-        except Exception as e:
-            print("timeout?")
 
     def getSheets(self):
         r = requests.get(self.lists_url, headers=self.headers, verify=False)
@@ -84,24 +74,7 @@ class Kirppari():
                     item_id = sheet_td_list[0].text
                     self.sheet_list[sheet_id]['items'][item_id] = sheet_td_list[1].text
 
-    def getConfig(self, configpath):
-        global config
-        c = configparser.ConfigParser()
-        c.read(configpath)
-        if ('main' in c):
-            self.config = c['main']
-            return self.config
-        else:
-            c.add_section('main')
-            c['main'] = {
-                'PHPSESSID': '',
-                'username': '',
-                'password': '',
-                'groupid': '',
-            }
-            with open('config.ini', 'w') as f:
-                c.write(f)
-        raise Exception("No config")
+
 
     def getLists(self):
         try:
@@ -141,18 +114,38 @@ class Kirppari():
                 sheetName = s['name']
                 nameFromSheet = s['items'][id]
                 logging.debug("New sale: " + nameFromSheet + ", " + sheetName)
-                self.send_msg("Myyty!: " + nameFromSheet + ", " + newsale['price'] + '. Lista: ' + sheetName + ', Nro: ' + id)
+                stack.send(self.target, "Myyty!: " + nameFromSheet + ", " + newsale['price'] + '. Lista: ' + sheetName + ', Nro: ' + id)
         
         return self.sale_list
-            
 
-def main():
-    parser = argparse.ArgumentParser(description='Get new sales from kirpparikalle  ')
-    parser.add_argument('-t', '--target', default='', help='Phone number to send', required=False)
-    parser.add_argument('-r', '--resend', default=0, type=int, help='Number of last sales to resend', required=False)
-    args = vars(parser.parse_args())
+def getConfig(configpath):
+    global global_config
+    c = configparser.ConfigParser()
+    c.read(configpath)
+    if ('main' in c and 'yowsup' in c):
+        global_config = c
+        return c
+    else:
+        c.add_section('main')
+        c['main'] = {
+            'PHPSESSID': '',
+            'username': '',
+            'password': '',
+            'groupid': '',
+        }
+        c.add_section('yowsup')
+        c['main'] = {
+            'cc': '',
+            'phone': '',
+            'id': '',
+            'password': ''
+        }
+        with open('config.ini', 'w') as f:
+            c.write(f)
+    raise Exception("No config")
 
-    kirppari = Kirppari('config.ini', target=args['target'])
+def loop(cfg, args, stack):
+    kirppari = Kirppari(cfg['main'], stack, target=args['target'])
     kirppari.login()
     kirppari.getSales()
     kirppari.saveLists()
@@ -171,8 +164,33 @@ def main():
             print("RESENDING " + sale['name'])    
             s = kirppari.getSheet(sale['item_id'])
             m += sale['name'] + ", " + sale['price'] + '. Lista: ' + s['name'] + ', Nro: ' + sale['item_id'] + "\n"
-        kirppari.send_msg(m)
+        stack.send(kirppari.target, m)
 
+
+def main():
+    parser = argparse.ArgumentParser(description='Get new sales from kirpparikalle  ')
+    parser.add_argument('-t', '--target', default='', help='Phone number to send', required=False)
+    parser.add_argument('-r', '--resend', default=0, type=int, help='Number of last sales to resend', required=False)
+    args = vars(parser.parse_args())
+
+    cfg = getConfig('config.ini')
+
+    credentials = (cfg['yowsup']['phone'], cfg['yowsup']['password'])
+    stack = YowsupKirppariStack(credentials)
+    print("Stack start...")
+    stack.start()
+    print("Stack start... Done")
+    time.sleep(3)
+
+    loop(cfg, args, stack)
+    schedule.every(5).minutes.do(loop, cfg, args, stack)
+
+    try:
+        while True:
+            schedule.run_pending()
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("End")
 
 if __name__ == "__main__":
     main()
