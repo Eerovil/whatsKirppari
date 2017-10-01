@@ -10,44 +10,6 @@ import configparser
 logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
 
 
-class Sale():
-    item_id = ""
-    name = ""
-    price = ""
-    date = ""
-
-    def __init__(self, item_id, name, price, date):
-        self.item_id = item_id
-        self.name = name
-        self.price = price
-        self.date = date
-
-
-def find_sale(item_id, sale_list):
-    for sale in sale_list:
-        if (sale['item_id'] == item_id):
-            return sale
-    return None
-
-
-class Sheet():
-    items = []
-
-    def __init__(self, item_id, name, link):
-        self.item_id = item_id
-        self.name = name
-        self.link = link
-        self.items = []
-    
-    def add_item(self, item_id):
-        self.items.append(item_id)
-
-    def contains_item(self, item_id):
-        if (item_id in self.items):
-            return True
-        return False
-
-
 class Kirppari():
     headers = {
         'DNT': '1', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.8,fi;q=0.6', 'Upgrade-Insecure-Requests': '1', 
@@ -62,8 +24,8 @@ class Kirppari():
 
     config = None
     target = ""
-    sheet_list = []
-    sale_list = []
+    sheet_list = {}
+    sale_list = {}
 
     def __init__(self, config_path, target=""):
         config = self.getConfig(config_path)
@@ -77,16 +39,16 @@ class Kirppari():
 
     def getSheet(self, item_id):
         print("Finding sheet")
-        for s in self.sheet_list:
-            for i in s['items']:
-                if (i['item_id'] == item_id):
-                    return s
+        for key, value in self.sheet_list.items():
+            if (item_id in value['items']):
+                return value
         self.getSheets()
         
-        for s in self.sheet_list:
-            for i in s['items']:
-                if (i['item_id'] == item_id):
-                    return s
+        for key, value in self.sheet_list.items():
+            if (item_id in value['items']):
+                return value
+        print("DID NOT FIND SHEET")
+        print(self.sheet_list)
         return None
 
     def send_msg(self, text):
@@ -104,14 +66,14 @@ class Kirppari():
         r = requests.get(self.lists_url, headers=self.headers, verify=False)
         soup = BeautifulSoup(r.text, 'html.parser')
         tr_list = soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
-        self.sheet_list[:] = []
+        self.sheet_list = {}
         for tr in tr_list:
             td_list = tr.find_all('td')
             sheet_url = self.main_url + td_list[8].find('a')['href']
             sheet_name = td_list[1].text
             sheet_id = td_list[0].text
             print(sheet_id)
-            self.sheet_list.append({'item_id': sheet_id, 'name': sheet_name, 'link': sheet_url, 'items': []})
+            self.sheet_list[sheet_id] = {'name': sheet_name, 'link': sheet_url, 'items': {}}
             sheet_r = requests.get(sheet_url, headers=self.headers, verify=False)
             sheet_soup = BeautifulSoup(sheet_r.text, 'html.parser')
             sheet_tr_list = sheet_soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
@@ -119,7 +81,8 @@ class Kirppari():
             for sheet_tr in sheet_tr_list:
                 sheet_td_list = sheet_tr.find_all('td')
                 if (len(sheet_td_list) > 0):
-                    self.sheet_list[-1]['items'].append({'item_id': sheet_td_list[0].text, 'name': sheet_td_list[1].text})
+                    item_id = sheet_td_list[0].text
+                    self.sheet_list[sheet_id]['items'][item_id] = sheet_td_list[1].text
 
     def getConfig(self, configpath):
         global config
@@ -171,12 +134,14 @@ class Kirppari():
             td_list = tr.find_all('td')
             id = td_list[0].text
             logging.info('  '+td_list[1].text)
-            if (find_sale(id, self.sale_list) is None):
-                newsale = {'item_id': td_list[0].text, 'name': td_list[1].text, 'price': td_list[2].text, 'date': td_list[3].text}
-                self.sale_list.append(newsale)
-                s = self.getSheet(newsale['item_id'])
-                logging.debug("New sale: " + newsale['name'] + ", " + s['name'])
-                self.send_msg("Myyty!: " + newsale['name'] + ", " + newsale['price'] + '. Lista: ' + s['name'] + ', Nro: ' + newsale['item_id'])
+            if (id not in self.sale_list):
+                newsale = {'name': td_list[1].text, 'price': td_list[2].text, 'date': td_list[3].text}
+                self.sale_list[id] = newsale
+                s = self.getSheet(id)
+                sheetName = s['name']
+                nameFromSheet = s['items'][id]
+                logging.debug("New sale: " + nameFromSheet + ", " + sheetName)
+                self.send_msg("Myyty!: " + nameFromSheet + ", " + newsale['price'] + '. Lista: ' + sheetName + ', Nro: ' + id)
         
         return self.sale_list
             
@@ -192,14 +157,14 @@ def main():
     kirppari.getSales()
     kirppari.saveLists()
 
-    for sale in kirppari.sale_list:
+    for key, sale in kirppari.sale_list.items():
         print(sale['name'])
-        print(kirppari.getSheet(sale['item_id'])['name'])
+        print(kirppari.getSheet(key)['items'][key])
 
     c = args['resend']
     if (c > 0):
         m = "Tässä " + str(c) + " viimeisintä myyntiä.\n"
-        for sale in reversed(kirppari.sale_list):
+        for key, sale in reversed(kirppari.sale_list.items()):
             c = c - 1
             if (c < 0):
                 break
