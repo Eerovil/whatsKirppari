@@ -27,10 +27,12 @@ class Kirppari():
 
     config = None
     target = ""
+    stack = None
     sheet_list = {}
     sale_list = {}
 
     def __init__(self, config, stack, target=""):
+        self.stack = stack
         self.headers['Cookie'] = 'PHPSESSID=' + config['PHPSESSID']
         self.login_url += '&username=' + config['username'] + '&password=' + config['password']
         if (len(target) == 0):
@@ -115,7 +117,7 @@ class Kirppari():
                 sheetName = s['name']
                 nameFromSheet = s['items'][id]
                 logging.debug("New sale: " + nameFromSheet + ", " + sheetName)
-                stack.send(self.target, "Myyty!: " + nameFromSheet + ", " + newsale['price'] + '. Lista: ' + sheetName + ', Nro: ' + id)
+                self.stack.send(self.target, "Myyty!: " + nameFromSheet + ", " + newsale['price'] + '. Lista: ' + sheetName + ', Nro: ' + id)
         
         return self.sale_list
 
