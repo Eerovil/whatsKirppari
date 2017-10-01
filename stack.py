@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from yowsup.stacks import YowStackBuilder
 from layer import KirppariLayer
 from yowsup.layers.auth import AuthError
