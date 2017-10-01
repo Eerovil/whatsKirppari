@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import requests
 from bs4 import BeautifulSoup
-import pickle
+import json
 from subprocess import call
 import logging
 import argparse
@@ -11,6 +11,11 @@ logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(
 
 
 class Sale():
+    item_id = ""
+    name = ""
+    price = ""
+    date = ""
+
     def __init__(self, item_id, name, price, date):
         self.item_id = item_id
         self.name = name
@@ -20,7 +25,7 @@ class Sale():
 
 def find_sale(item_id, sale_list):
     for sale in sale_list:
-        if (sale.item_id == item_id):
+        if (sale['item_id'] == item_id):
             return sale
     return None
 
@@ -73,13 +78,15 @@ class Kirppari():
     def getSheet(self, item_id):
         print("Finding sheet")
         for s in self.sheet_list:
-            if (s.contains_item(item_id)):
-                return s
+            for i in s['items']:
+                if (i['item_id'] == item_id):
+                    return s
         self.getSheets()
         
         for s in self.sheet_list:
-            if (s.contains_item(item_id)):
-                return s
+            for i in s['items']:
+                if (i['item_id'] == item_id):
+                    return s
         return None
 
     def send_msg(self, text):
@@ -104,7 +111,7 @@ class Kirppari():
             sheet_name = td_list[1].text
             sheet_id = td_list[0].text
             print(sheet_id)
-            self.sheet_list.append(Sheet(sheet_id, sheet_name, sheet_url))
+            self.sheet_list.append({'item_id': sheet_id, 'name': sheet_name, 'link': sheet_url, 'items': []})
             sheet_r = requests.get(sheet_url, headers=self.headers, verify=False)
             sheet_soup = BeautifulSoup(sheet_r.text, 'html.parser')
             sheet_tr_list = sheet_soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
@@ -112,7 +119,7 @@ class Kirppari():
             for sheet_tr in sheet_tr_list:
                 sheet_td_list = sheet_tr.find_all('td')
                 if (len(sheet_td_list) > 0):
-                    self.sheet_list[-1].add_item(sheet_td_list[0].text)
+                    self.sheet_list[-1]['items'].append({'item_id': sheet_td_list[0].text, 'name': sheet_td_list[1].text})
 
     def getConfig(self, configpath):
         global config
@@ -135,23 +142,23 @@ class Kirppari():
 
     def getLists(self):
         try:
-            with open("kirppari.pickle", 'rb') as input:
-                self.sale_list = pickle.load(input)
+            with open("kirppari.json", 'r') as input:
+                self.sale_list = json.load(input)
         except:
-            with open("kirppari.pickle", 'wb') as output:
-                pickle.dump(self.sale_list, output)
+            with open("kirppari.json", 'w') as output:
+                json.dump(self.sale_list, output)
         try:
-            with open("kirppari_lists.pickle", 'rb') as input:
-                self.sheet_list = pickle.load(input)
+            with open("kirppari_lists.json", 'r') as input:
+                self.sheet_list = json.load(input)
         except:
-            with open("kirppari_lists.pickle", 'wb') as output:
-                pickle.dump(self.sheet_list, output)
+            with open("kirppari_lists.json", 'w') as output:
+                json.dump(self.sheet_list, output)
 
     def saveLists(self):
-        with open("kirppari.pickle", 'wb') as output:
-            pickle.dump(self.sale_list, output)
-        with open("kirppari_lists.pickle", 'wb') as output:
-            pickle.dump(self.sheet_list, output)
+        with open("kirppari.json", 'w') as output:
+            json.dump(self.sale_list, output, ensure_ascii=False)
+        with open("kirppari_lists.json", 'w') as output:
+            json.dump(self.sheet_list, output, ensure_ascii=False)
 
     def login(self):
         requests.get(self.login_url, headers=self.headers, verify=False)
@@ -165,11 +172,11 @@ class Kirppari():
             id = td_list[0].text
             logging.info('  '+td_list[1].text)
             if (find_sale(id, self.sale_list) is None):
-                newsale = Sale(td_list[0].text, td_list[1].text, td_list[2].text, td_list[3].text)
+                newsale = {'item_id': td_list[0].text, 'name': td_list[1].text, 'price': td_list[2].text, 'date': td_list[3].text}
                 self.sale_list.append(newsale)
-                s = self.getSheet(newsale.item_id)
-                logging.debug("New sale: " + newsale.name + ", " + s.name)
-                self.send_msg("Myyty!: " + newsale.name + ", " + newsale.price + '. Lista: ' + s.name + ', Nro: ' + newsale.item_id)
+                s = self.getSheet(newsale['item_id'])
+                logging.debug("New sale: " + newsale['name'] + ", " + s['name'])
+                self.send_msg("Myyty!: " + newsale['name'] + ", " + newsale['price'] + '. Lista: ' + s['name'] + ', Nro: ' + newsale['item_id'])
         
         return self.sale_list
             
@@ -183,10 +190,11 @@ def main():
     kirppari = Kirppari('config.ini', target=args['target'])
     kirppari.login()
     kirppari.getSales()
+    kirppari.saveLists()
 
     for sale in kirppari.sale_list:
-        print(sale.name)
-        print(kirppari.getSheet(sale.item_id).name)
+        print(sale['name'])
+        print(kirppari.getSheet(sale['item_id'])['name'])
 
     c = args['resend']
     if (c > 0):
@@ -195,9 +203,9 @@ def main():
             c = c - 1
             if (c < 0):
                 break
-            print("RESENDING " + sale.name)    
-            s = kirppari.getSheet(sale.item_id)
-            m += sale.name + ", " + sale.price + '. Lista: ' + s.name + ', Nro: ' + sale.item_id + "\n"
+            print("RESENDING " + sale['name'])    
+            s = kirppari.getSheet(sale['item_id'])
+            m += sale['name'] + ", " + sale['price'] + '. Lista: ' + s['name'] + ', Nro: ' + sale['item_id'] + "\n"
         kirppari.send_msg(m)
 
 
