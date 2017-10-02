@@ -195,7 +195,6 @@ def main():
     time.sleep(3)
 
     kirppari = loop(cfg, args, stack)
-    stack.setKirppari(kirppari)
 
     c = args['resend']
     if (c > 0):
