@@ -200,8 +200,6 @@ def main():
     if (c > 0):
         resend(c, kirppari)
         time.sleep(5)
-        stack.stop()
-        return
 
     schedule.every(5).minutes.do(loop, cfg, args, stack)
 
