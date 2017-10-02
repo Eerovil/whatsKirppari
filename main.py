@@ -42,7 +42,7 @@ class Kirppari():
         self.getLists()
 
     def getSheet(self, item_id):
-        print("Finding sheet")
+        logging.info("Finding sheet")
         for key, value in self.sheet_list.items():
             if (item_id in value['items']):
                 return value
@@ -51,8 +51,8 @@ class Kirppari():
         for key, value in self.sheet_list.items():
             if (item_id in value['items']):
                 return value
-        print("DID NOT FIND SHEET")
-        print(self.sheet_list)
+        logging.info("DID NOT FIND SHEET")
+        logging.info(self.sheet_list)
         return None
 
     def getSheets(self):
@@ -65,12 +65,12 @@ class Kirppari():
             sheet_url = self.main_url + td_list[8].find('a')['href']
             sheet_name = td_list[1].text
             sheet_id = td_list[0].text
-            print(sheet_id)
+            logging.info(sheet_id)
             self.sheet_list[sheet_id] = {'name': sheet_name, 'link': sheet_url, 'items': {}}
             sheet_r = requests.get(sheet_url, headers=self.headers, verify=False)
             sheet_soup = BeautifulSoup(sheet_r.text, 'html.parser')
             sheet_tr_list = sheet_soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
-            print(sheet_tr_list[0].find('td').text)
+            logging.info(sheet_tr_list[0].find('td').text)
             for sheet_tr in sheet_tr_list:
                 sheet_td_list = sheet_tr.find_all('td')
                 if (len(sheet_td_list) > 0):
@@ -157,12 +157,12 @@ def resend(c, kirppari):
     if (c > 0):
         m = "Tässä " + str(c) + " viimeisintä myyntiä.\n"
         sortedValues = sorted(kirppari.sale_list.items(), key=lambda x: x[1]['row'], reverse=True)
-        print(sortedValues)
+        logging.info(sortedValues)
         for key, sale in sortedValues:
             c = c - 1
             if (c < 0):
                 break
-            print("RESENDING " + sale['name'])    
+            logging.info("RESENDING " + sale['name'])    
             m += kirppari.makeSaleString(key) + "\n"
         kirppari.stack.send(kirppari.target, m)
 
@@ -173,8 +173,8 @@ def loop(cfg, args, stack):
     kirppari.saveLists()
 
     for key, sale in kirppari.sale_list.items():
-        print(sale['name'])
-        print(kirppari.getSheet(key)['items'][key])
+        logging.info(sale['name'])
+        logging.info(kirppari.getSheet(key)['items'][key])
 
     return kirppari
 
@@ -189,10 +189,10 @@ def main():
 
     credentials = (cfg['yowsup']['phone'], cfg['yowsup']['password'])
     stack = YowsupKirppariStack(credentials)
-    print("Stack start...")
+    logging.info("Stack start...")
     stack.start()
-    print("Stack start... Done")
-    time.sleep(3)
+    logging.info("Stack start... Done")
+    time.sleep(15)
 
     kirppari = loop(cfg, args, stack)
 
@@ -209,7 +209,7 @@ def main():
             time.sleep(1)
     except KeyboardInterrupt:
         stack.stop()
-        print("End")
+        logging.info("End")
 
 if __name__ == "__main__":
     main()

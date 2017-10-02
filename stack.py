@@ -8,7 +8,8 @@ import asyncore
 from yowsup.layers.axolotl.props import PROP_IDENTITY_AUTOTRUST
 import sys
 import threading
-
+import logging
+logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
 
 class YowsupKirppariStack(object):
     loop_thread = None
@@ -25,25 +26,25 @@ class YowsupKirppariStack(object):
         self.stack.setProp(PROP_IDENTITY_AUTOTRUST, True)
 
     def start(self):
-        print("Yowsup Cli client\n==================\nType /help for available commands\n")
+        logging.info("Yowsup Cli client\n==================\nType /help for available commands\n")
         self.stack.broadcastEvent(YowLayerEvent(YowNetworkLayer.EVENT_STATE_CONNECT))
         self.loop_thread = threading.Thread(target=self.stack.loop, name="AsyncoreLoop")
         try:
-            print("Asyncore loop...")
+            logging.info("Asyncore loop...")
             self.loop_thread.start()
-            print("Asyncore loop...Done")
+            logging.info("Asyncore loop...Done")
         except AuthError as e:
-            print("Auth Error, reason %s" % e)
+            logging.info("Auth Error, reason %s" % e)
         except KeyboardInterrupt:
-            print("\nYowsdown")
+            logging.info("\nYowsdown")
             #sys.exit(0)
 
     def send(self, target, message):
-        print("sending")
+        logging.info("sending")
         self.stack.broadcastEvent(YowLayerEvent(KirppariLayer.EVENT_SEND, target=target, message=message))
 
 
     def stop(self):
-        print("Sending diconnect")
+        logging.info("Sending diconnect")
         self.stack.broadcastEvent(YowLayerEvent(YowNetworkLayer.EVENT_STATE_DISCONNECTED))
         sys.exit(0)

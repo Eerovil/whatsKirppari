@@ -7,7 +7,8 @@ from yowsup.layers import YowLayerEvent, EventCallback
 from yowsup.common.tools import Jid
 from yowsup.layers.network import YowNetworkLayer
 import os
-
+import logging
+logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
 class KirppariLayer(YowInterfaceLayer):
     EVENT_SEND    = "org.eerovil.kirppari.event.send"
     EVENT_MESSAGE = "org.eerovil.kirppari.event.message"
@@ -21,14 +22,14 @@ class KirppariLayer(YowInterfaceLayer):
 
     @EventCallback(YowNetworkLayer.EVENT_STATE_DISCONNECTED)
     def onStateDisconnected(self,layerEvent):
-        print("Disconnected: %s" % layerEvent.getArg("reason"))
+        logging.info("Disconnected: %s" % layerEvent.getArg("reason"))
         os._exit(os.EX_OK)
 
     @ProtocolEntityCallback("message")
     def onMessage(self, messageProtocolEntity):
         #send receipt otherwise we keep receiving the same message over and over
         msg = messageProtocolEntity.getBody()
-        print(msg)
+        logging.info(msg)
         
         receipt = OutgoingReceiptProtocolEntity(
             messageProtocolEntity.getId(),
@@ -47,4 +48,4 @@ class KirppariLayer(YowInterfaceLayer):
 
     @ProtocolEntityCallback("ack")
     def onAck(self, entity):
-        print("Message sent")
+        logging.info("Message sent")
