@@ -11,6 +11,7 @@ import threading
 
 
 class YowsupKirppariStack(object):
+    loop_thread = None
     def __init__(self, credentials):
         stackBuilder = YowStackBuilder()
 
@@ -26,10 +27,10 @@ class YowsupKirppariStack(object):
     def start(self):
         print("Yowsup Cli client\n==================\nType /help for available commands\n")
         self.stack.broadcastEvent(YowLayerEvent(YowNetworkLayer.EVENT_STATE_CONNECT))
-        loop_thread = threading.Thread(target=asyncore.loop, name="AsyncoreLoop")
+        self.loop_thread = threading.Thread(target=self.stack.loop, name="AsyncoreLoop")
         try:
             print("Asyncore loop...")
-            loop_thread.start()
+            self.loop_thread.start()
             print("Asyncore loop...Done")
         except AuthError as e:
             print("Auth Error, reason %s" % e)
@@ -42,5 +43,7 @@ class YowsupKirppariStack(object):
         self.stack.broadcastEvent(YowLayerEvent(KirppariLayer.EVENT_SEND, target=target, message=message))
 
 
-    #def stop(self):
-        #sys.exit(0)
+    def stop(self):
+        print("Sending diconnect")
+        self.stack.broadcastEvent(YowLayerEvent(YowNetworkLayer.EVENT_STATE_DISCONNECTED))
+        sys.exit(0)

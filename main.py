@@ -106,20 +106,26 @@ class Kirppari():
         r = requests.get(self.sales_url, headers=self.headers, verify=False)
         soup = BeautifulSoup(r.text, 'html.parser')
         tr_list = soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
+        trCount = 0
         for tr in tr_list:
+            trCount += 1
             td_list = tr.find_all('td')
-            id = td_list[0].text
+            sale_id = td_list[0].text
             logging.info('  '+td_list[1].text)
-            if (id not in self.sale_list):
-                newsale = {'name': td_list[1].text, 'price': td_list[2].text, 'date': td_list[3].text}
-                self.sale_list[id] = newsale
-                s = self.getSheet(id)
-                sheetName = s['name']
-                nameFromSheet = s['items'][id]
-                logging.debug("New sale: " + nameFromSheet + ", " + sheetName)
-                self.stack.send(self.target, "Myyty!: " + nameFromSheet + ", " + newsale['price'] + '. Lista: ' + sheetName + ', Nro: ' + id)
-        
+            if (sale_id not in self.sale_list):
+                newsale = {'row':trCount ,'name': td_list[1].text, 'price': td_list[2].text, 'date': td_list[3].text}
+                self.sale_list[sale_id] = newsale
+                self.stack.send(self.target, self.makeSaleString(sale_id))
         return self.sale_list
+
+    def makeSaleString(self, sale_id):
+        sale = self.sale_list[sale_id]
+        s = self.getSheet(sale_id)
+        sheetName = s['name']
+        nameFromSheet = s['items'][sale_id]
+        logging.debug("New sale: " + nameFromSheet + ", " + sheetName)
+        return "Myyty!: " + nameFromSheet + ", " + sale['price'] + '. Lista: ' + sheetName + ', Nro: ' + sale_id
+
 
 def getConfig(configpath):
     global global_config
@@ -147,6 +153,19 @@ def getConfig(configpath):
             c.write(f)
     raise Exception("No config")
 
+def resend(c, kirppari):
+    if (c > 0):
+        m = "Tässä " + str(c) + " viimeisintä myyntiä.\n"
+        sortedValues = sorted(kirppari.sale_list.items(), key=lambda x: x[1]['row'], reverse=True)
+        print(sortedValues)
+        for key, sale in sortedValues:
+            c = c - 1
+            if (c < 0):
+                break
+            print("RESENDING " + sale['name'])    
+            m += kirppari.makeSaleString(key) + "\n"
+        kirppari.stack.send(kirppari.target, m)
+
 def loop(cfg, args, stack):
     kirppari = Kirppari(cfg['main'], stack, target=args['target'])
     kirppari.login()
@@ -157,17 +176,7 @@ def loop(cfg, args, stack):
         print(sale['name'])
         print(kirppari.getSheet(key)['items'][key])
 
-    c = args['resend']
-    if (c > 0):
-        m = "Tässä " + str(c) + " viimeisintä myyntiä.\n"
-        for key, sale in reversed(kirppari.sale_list.items()):
-            c = c - 1
-            if (c < 0):
-                break
-            print("RESENDING " + sale['name'])    
-            s = kirppari.getSheet(sale['item_id'])
-            m += sale['name'] + ", " + sale['price'] + '. Lista: ' + s['name'] + ', Nro: ' + sale['item_id'] + "\n"
-        stack.send(kirppari.target, m)
+    return kirppari
 
 
 def main():
@@ -183,9 +192,16 @@ def main():
     print("Stack start...")
     stack.start()
     print("Stack start... Done")
-    time.sleep(3)
+    #time.sleep(3)
 
-    loop(cfg, args, stack)
+    kirppari = loop(cfg, args, stack)
+
+    c = args['resend']
+    if (c > 0):
+        resend(c, kirppari)
+        stack.stop()
+        return
+
     schedule.every(5).minutes.do(loop, cfg, args, stack)
 
     try:
@@ -193,6 +209,7 @@ def main():
             schedule.run_pending()
             time.sleep(1)
     except KeyboardInterrupt:
+        stack.stop()
         print("End")
 
 if __name__ == "__main__":
