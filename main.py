@@ -113,9 +113,11 @@ class Kirppari():
             sale_id = td_list[0].text
             logging.info('  '+td_list[1].text)
             if (sale_id not in self.sale_list):
-                newsale = {'row':trCount ,'name': td_list[1].text, 'price': td_list[2].text, 'date': td_list[3].text}
+                newsale = {'row': trCount, 'name': td_list[1].text, 'price': td_list[2].text, 'date': td_list[3].text}
                 self.sale_list[sale_id] = newsale
-                self.stack.send(self.target, self.makeSaleString(sale_id))
+                self.stack.send(self.target, "Myyty! " + self.makeSaleString(sale_id))
+            else:
+                self.sale_list[sale_id]['row'] = trCount
         return self.sale_list
 
     def makeSaleString(self, sale_id):
@@ -124,7 +126,7 @@ class Kirppari():
         sheetName = s['name']
         nameFromSheet = s['items'][sale_id]
         logging.debug("New sale: " + nameFromSheet + ", " + sheetName)
-        return "Myyty!: " + nameFromSheet + ", " + sale['price'] + '. Lista: ' + sheetName + ', Nro: ' + sale_id
+        return nameFromSheet + ", " + sale['price'] + ', ' + sheetName + ', ' + sale_id + ', ' + sale['date']
 
 
 def getConfig(configpath):
@@ -156,7 +158,7 @@ def getConfig(configpath):
 def resend(c, kirppari):
     if (c > 0):
         m = "Tässä " + str(c) + " viimeisintä myyntiä.\n"
-        sortedValues = sorted(kirppari.sale_list.items(), key=lambda x: x[1]['row'], reverse=True)
+        sortedValues = sorted(kirppari.sale_list.items(), key=lambda x: x[1]['row'], reverse=False)
         logging.info(sortedValues)
         for key, sale in sortedValues:
             c = c - 1
