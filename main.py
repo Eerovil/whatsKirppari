@@ -192,13 +192,15 @@ def main():
     print("Stack start...")
     stack.start()
     print("Stack start... Done")
-    #time.sleep(3)
+    time.sleep(3)
 
     kirppari = loop(cfg, args, stack)
+    stack.setKirppari(kirppari)
 
     c = args['resend']
     if (c > 0):
         resend(c, kirppari)
+        time.sleep(5)
         stack.stop()
         return
 
