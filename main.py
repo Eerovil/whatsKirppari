@@ -239,7 +239,7 @@ def main():
 
     target = args['target']
     if (target == ""):
-        target = cfg['main']['target']
+        target = cfg['main']['groupid']
 
     kirppari = loop(
         target=target, 
