@@ -14,7 +14,7 @@ from datetime import datetime
 logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
 global_config = None
 
-class Kirppari():
+class KirppariHTTP():
     headers = {
         'DNT': '1', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.8,fi;q=0.6', 'Upgrade-Insecure-Requests': '1', 
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36',
@@ -26,20 +26,40 @@ class Kirppari():
     sales_url = 'https://www.kirpparikalle.net/sovellus/index.php?page=mysales'
     lists_url = 'https://www.kirpparikalle.net/sovellus/index.php?page=myproducts'
 
+    def __init__(self, phpsessid, username, password):
+        self.headers['Cookie'] = 'PHPSESSID=' + phpsessid
+        self.login_url += '&username=' + username + '&password=' + password
+        self.login()
+
+    def getSheets(self):
+        return requests.get(self.lists_url, headers=self.headers, verify=False)
+
+    def getURL(self, url):
+        return requests.get(url, headers=self.headers, verify=False)
+
+    def getSales(self):
+        return requests.get(self.sales_url, headers=self.headers, verify=False)
+
+    def login(self):
+        return requests.get(self.login_url, headers=self.headers, verify=False)
+
+    def getSaldo(self):
+        r = requests.get(self.sales_url, headers=self.headers, verify=False)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        return soup.find('td', attrs={'id':'maincont'}).find_all('td')[1].text
+class Kirppari():
+
+    http = None
     config = None
     target = ""
     stack = None
     sheet_list = {}
     sale_list = {}
 
-    def __init__(self, config, stack, target=""):
+    def __init__(self, target, stack, http):
         self.stack = stack
-        self.headers['Cookie'] = 'PHPSESSID=' + config['PHPSESSID']
-        self.login_url += '&username=' + config['username'] + '&password=' + config['password']
-        if (len(target) == 0):
-            self.target = config['groupid']
-        else:
-            self.target = target
+        self.http = http
+        self.target = target
         self.getLists()
 
     def getSheet(self, item_id):
@@ -57,7 +77,7 @@ class Kirppari():
         return None
 
     def getSheets(self):
-        r = requests.get(self.lists_url, headers=self.headers, verify=False)
+        r = self.http.getSheets()
         soup = BeautifulSoup(r.text, 'html.parser')
         tr_list = soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
         self.sheet_list = {}
@@ -68,7 +88,7 @@ class Kirppari():
             sheet_id = td_list[0].text
             logging.info(sheet_id)
             self.sheet_list[sheet_id] = {'name': sheet_name, 'link': sheet_url, 'items': {}}
-            sheet_r = requests.get(sheet_url, headers=self.headers, verify=False)
+            sheet_r = self.http.getURL(sheet_url)
             sheet_soup = BeautifulSoup(sheet_r.text, 'html.parser')
             sheet_tr_list = sheet_soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
             logging.info(sheet_tr_list[0].find('td').text)
@@ -77,8 +97,6 @@ class Kirppari():
                 if (len(sheet_td_list) > 0):
                     item_id = sheet_td_list[0].text
                     self.sheet_list[sheet_id]['items'][item_id] = sheet_td_list[1].text
-
-
 
     def getLists(self):
         try:
@@ -100,11 +118,8 @@ class Kirppari():
         with open("kirppari_lists.json", 'w') as output:
             json.dump(self.sheet_list, output, ensure_ascii=False)
 
-    def login(self):
-        requests.get(self.login_url, headers=self.headers, verify=False)
-
     def getSales(self):
-        r = requests.get(self.sales_url, headers=self.headers, verify=False)
+        r = self.http.getSales()
         soup = BeautifulSoup(r.text, 'html.parser')
         tr_list = soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
         trCount = 0
@@ -176,12 +191,14 @@ def testTime():
     logging.info("Not open: not checking.")
     return False
 
-def loop(cfg, args, stack):
+def loop(target, stack, kirppari_http):
     if (not testTime()):
         return
 
-    kirppari = Kirppari(cfg['main'], stack, target=args['target'])
-    kirppari.login()
+    kirppari = Kirppari(
+        target=target, 
+        stack=stack, 
+        http=kirppari_http)
     kirppari.getSales()
     kirppari.saveLists()
 
@@ -195,27 +212,55 @@ def loop(cfg, args, stack):
 
 def main():
     parser = argparse.ArgumentParser(description='Get new sales from kirpparikalle  ')
-    parser.add_argument('-t', '--target', default='', help='Phone number to send', required=False)
-    parser.add_argument('-r', '--resend', default=0, type=int, help='Number of last sales to resend', required=False)
+    parser.add_argument('-t', '--target', default='', 
+        help='Phone number to send', 
+        required=False)
+    parser.add_argument('-r', '--resend', default=0, type=int, 
+        help='Number of last sales to resend', 
+        required=False)
     args = vars(parser.parse_args())
 
     cfg = getConfig('config.ini')
 
-    credentials = (cfg['yowsup']['phone'], cfg['yowsup']['password'])
-    stack = YowsupKirppariStack(credentials)
+    kirppari_http = KirppariHTTP(
+        cfg['main']['PHPSESSID'], 
+        cfg['main']['username'], 
+        cfg['main']['password'])
+
+    credentials = (
+        cfg['yowsup']['phone'], 
+        cfg['yowsup']['password'])
+    stack = YowsupKirppariStack(credentials, kirppari_http)
     logging.info("Stack start...")
     stack.start()
     logging.info("Stack start... Done")
     time.sleep(15)
 
-    kirppari = loop(cfg, args, stack)
+
+    target = args['target']
+    if (target == ""):
+        target = cfg['main']['target']
+
+    kirppari = loop(
+        target=target, 
+        stack=stack, 
+        kirppari_http=kirppari_http)
 
     c = args['resend']
     if (c > 0):
+        if (not kirppari):
+            kirppari = Kirppari(
+                target=target, 
+                stack=stack, 
+                http=kirppari_http)
+            kirppari.getSales()
         resend(c, kirppari)
         time.sleep(5)
 
-    schedule.every(5).minutes.do(loop, cfg, args, stack)
+    schedule.every(5).minutes.do(loop, 
+        target=target, 
+        stack=stack, 
+        kirppari_http=kirppari_http)
 
     try:
         while True:
