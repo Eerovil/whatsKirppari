@@ -9,6 +9,7 @@ import configparser
 from stack import YowsupKirppariStack
 import time
 import schedule
+from datetime import datetime
 
 logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
 global_config = None
@@ -168,7 +169,17 @@ def resend(c, kirppari):
             m += kirppari.makeSaleString(key) + "\n"
         kirppari.stack.send(kirppari.target, m)
 
+def testTime(): 
+    now = datetime.now().strftime('%H%M')
+    if '0855' <= now <= '1905':
+        return True
+    logger.info("Not open: not checking.")
+    return False
+
 def loop(cfg, args, stack):
+    if (not testTime()):
+        return
+
     kirppari = Kirppari(cfg['main'], stack, target=args['target'])
     kirppari.login()
     kirppari.getSales()
