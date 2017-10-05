@@ -185,11 +185,10 @@ def loop(cfg, args, stack):
     kirppari.getSales()
     kirppari.saveLists()
 
-    for key, sale in kirppari.sale_list.items():
-        sortedValues = sorted(kirppari.sale_list.items(), key=lambda x: x[1]['row'], reverse=True)
-        logging.info(sortedValues)
-        for key, sale in sortedValues:
-            logging.info(str(sale['row']) + ": " + kirppari.getSheet(key)['items'][key] + ", " + str(sale['price']))
+    sortedValues = sorted(kirppari.sale_list.items(), key=lambda x: x[1]['row'], reverse=True)
+    logging.info(sortedValues)
+    for key, sale in sortedValues:
+        logging.info(str(sale['row']) + ": " + kirppari.getSheet(key)['items'][key] + ", " + str(sale['price']))
 
     return kirppari
 
