@@ -13,7 +13,7 @@ logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(
 
 class YowsupKirppariStack(object):
     loop_thread = None
-    def __init__(self, credentials):
+    def __init__(self, credentials, http):
         stackBuilder = YowStackBuilder()
 
         self.stack = stackBuilder\
@@ -24,6 +24,7 @@ class YowsupKirppariStack(object):
         # self.stack.setCredentials(credentials)
         self.stack.setCredentials(credentials)
         self.stack.setProp(PROP_IDENTITY_AUTOTRUST, True)
+        self.stack.setProp(KirppariLayer.PROP_HTTP, http)
 
     def start(self):
         logging.info("Yowsup Cli client\n==================\nType /help for available commands\n")

@@ -12,6 +12,7 @@ logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(
 class KirppariLayer(YowInterfaceLayer):
     EVENT_SEND    = "org.eerovil.kirppari.event.send"
     EVENT_MESSAGE = "org.eerovil.kirppari.event.message"
+    PROP_HTTP =     "org.eerovil.kirppari.prop.http"
 
     @EventCallback(EVENT_SEND)
     def onSend(self, layerEvent):
@@ -25,11 +26,30 @@ class KirppariLayer(YowInterfaceLayer):
         logging.info("Disconnected: %s" % layerEvent.getArg("reason"))
         os._exit(os.EX_OK)
 
+    def executeCommand(self, messageProtocolEntity):
+        http = self.getProp(self.PROP_HTTP)
+        msg = messageProtocolEntity.getBody()
+        send = ""
+        if (msg == "!saldo"):
+            logging.debug("We got there")
+            send = "Tämänhetkinen saldo: " + http.getSaldo()
+            messageEntity = TextMessageProtocolEntity(send, to = messageProtocolEntity.getFrom())
+        else:
+            return
+
+        self.toLower(messageEntity)
+        #self.toLower(messageEntity.ack())
+        #self.toLower(messageEntity.ack(True))
+            
+
     @ProtocolEntityCallback("message")
     def onMessage(self, messageProtocolEntity):
         #send receipt otherwise we keep receiving the same message over and over
         msg = messageProtocolEntity.getBody()
         logging.info(msg)
+
+        if (msg[0] == '!'):
+            self.executeCommand(messageProtocolEntity)
         
         receipt = OutgoingReceiptProtocolEntity(
             messageProtocolEntity.getId(),
