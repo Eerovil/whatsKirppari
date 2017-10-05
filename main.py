@@ -173,7 +173,7 @@ def testTime():
     now = datetime.now().strftime('%H%M')
     if '0855' <= now <= '1905':
         return True
-    logger.info("Not open: not checking.")
+    logging.info("Not open: not checking.")
     return False
 
 def loop(cfg, args, stack):
