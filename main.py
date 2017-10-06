@@ -45,8 +45,11 @@ class KirppariHTTP():
 
     def getSaldo(self):
         r = requests.get(self.sales_url, headers=self.headers, verify=False)
-        soup = BeautifulSoup(r.text, 'html.parser')
-        return soup.find('td', attrs={'id':'maincont'}).find_all('td')[1].text
+        try:
+            soup = BeautifulSoup(r.text, 'html.parser')
+            return soup.find('td', attrs={'id':'maincont'}).find_all('td')[1].text
+        except Exception as e:
+            return ""
 class Kirppari():
 
     http = None
