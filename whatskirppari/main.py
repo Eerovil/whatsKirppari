@@ -189,7 +189,7 @@ def resend(c, kirppari):
         kirppari.stack.send(kirppari.target, m)
 
 def testTime():
-        now = datetime.now().strftime('%H%M')
+    now = datetime.now().strftime('%H%M')
     if '0855' <= now <= '1905':
         return True
     logging.info("Not open: not checking.")
