@@ -6,7 +6,7 @@ import json
 import logging
 import argparse
 import configparser
-from stack import YowsupKirppariStack
+from .stack import YowsupKirppariStack
 import time
 import schedule
 from datetime import datetime
@@ -79,6 +79,7 @@ class Kirppari():
         logging.info(self.sheet_list)
         return None
 
+    # TODO: Try to use itertools
     def getSheets(self):
         r = self.http.getSheets()
         soup = BeautifulSoup(r.text, 'html.parser')
@@ -187,8 +188,8 @@ def resend(c, kirppari):
             m += kirppari.makeSaleString(key) + "\n"
         kirppari.stack.send(kirppari.target, m)
 
-def testTime(): 
-    now = datetime.now().strftime('%H%M')
+def testTime():
+        now = datetime.now().strftime('%H%M')
     if '0855' <= now <= '1905':
         return True
     logging.info("Not open: not checking.")

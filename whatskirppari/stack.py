@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from yowsup.stacks import YowStackBuilder
-from layer import KirppariLayer
+from .layer import KirppariLayer
 from yowsup.layers.auth import AuthError
 from yowsup.layers import YowLayerEvent
 from yowsup.layers.network import YowNetworkLayer
