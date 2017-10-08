@@ -35,7 +35,7 @@ class KirppariHTTP():
         return requests.get(self.lists_url, headers=self.headers, verify=False)
 
     def getURL(self, url):
-        return requests.get(url, headers=self.headers, verify=False)
+        return requests.get(self.main_url + url, headers=self.headers, verify=False)
 
     def getSales(self):
         return requests.get(self.sales_url, headers=self.headers, verify=False)
@@ -80,14 +80,17 @@ class Kirppari():
         return None
 
     # TODO: Try to use itertools
-    def getSheets(self):
+    def getSheets(self, amount = 999):
         r = self.http.getSheets()
         soup = BeautifulSoup(r.text, 'html.parser')
         tr_list = soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
         self.sheet_list = {}
         for tr in tr_list:
+            amount -= 1
+            if (amount < 0):
+                return
             td_list = tr.find_all('td')
-            sheet_url = self.main_url + td_list[8].find('a')['href']
+            sheet_url = td_list[8].find('a')['href']
             sheet_name = td_list[1].text
             sheet_id = td_list[0].text
             logging.info(sheet_id)
