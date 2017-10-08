@@ -8,7 +8,6 @@ from yowsup.common.tools import Jid
 from yowsup.layers.network import YowNetworkLayer
 import os
 import logging
-logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 class KirppariLayer(YowInterfaceLayer):

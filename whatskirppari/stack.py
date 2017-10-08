@@ -9,7 +9,6 @@ from yowsup.layers.axolotl.props import PROP_IDENTITY_AUTOTRUST
 import sys
 import threading
 import logging
-logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 class YowsupKirppariStack(object):

@@ -11,9 +11,10 @@ import time
 import schedule
 from datetime import datetime
 
-logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
+logging.basicConfig(filename='example.log', format='%(asctime)s - %(name)s %(lineno)d - %(levelname)s:%(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 global_config = None
+DEBUG_MODE = False
 
 class KirppariHTTP():
     headers = {
@@ -226,7 +227,13 @@ def main():
     parser.add_argument('-r', '--resend', default=0, type=int, 
         help='Number of last sales to resend', 
         required=False)
+    parser.add_argument('-d', '--debug', action='store_true', 
+        help='Debug mode', 
+        required=False)
     args = vars(parser.parse_args())
+
+    global DEBUG_MODE
+    DEBUG_MODE = args['debug']
 
     cfg = getConfig('config.ini')
 
@@ -241,8 +248,9 @@ def main():
     stack = YowsupKirppariStack(credentials, kirppari_http)
     logger.info("Stack start...")
     stack.start()
+    if not DEBUG_MODE:
+        time.sleep(15)
     logger.info("Stack start... Done")
-    time.sleep(15)
 
 
     target = args['target']
