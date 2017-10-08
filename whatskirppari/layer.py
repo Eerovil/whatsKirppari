@@ -45,11 +45,12 @@ class KirppariLayer(YowInterfaceLayer):
     @ProtocolEntityCallback("message")
     def onMessage(self, messageProtocolEntity):
         #send receipt otherwise we keep receiving the same message over and over
-        msg = messageProtocolEntity.getBody()
-        logging.info(msg)
+        if messageProtocolEntity.getType() == 'text':
+            msg = messageProtocolEntity.getBody()
+            logging.info(msg)
 
-        if (msg[0] == '!'):
-            self.executeCommand(messageProtocolEntity)
+            if (msg[0] == '!'):
+                self.executeCommand(messageProtocolEntity)
         
         receipt = OutgoingReceiptProtocolEntity(
             messageProtocolEntity.getId(),
