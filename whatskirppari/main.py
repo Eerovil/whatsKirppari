@@ -12,6 +12,7 @@ import schedule
 from datetime import datetime
 
 logging.basicConfig(filename='example.log', format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 global_config = None
 
 class KirppariHTTP():
@@ -66,7 +67,7 @@ class Kirppari():
         self.getLists()
 
     def getSheet(self, item_id):
-        logging.info("Finding sheet")
+        logger.info("Finding sheet")
         for key, value in self.sheet_list.items():
             if (item_id in value['items']):
                 return value
@@ -75,8 +76,8 @@ class Kirppari():
         for key, value in self.sheet_list.items():
             if (item_id in value['items']):
                 return value
-        logging.info("DID NOT FIND SHEET")
-        logging.info(self.sheet_list)
+        logger.info("DID NOT FIND SHEET")
+        logger.info(self.sheet_list)
         return None
 
     # TODO: Try to use itertools
@@ -93,12 +94,12 @@ class Kirppari():
             sheet_url = td_list[8].find('a')['href']
             sheet_name = td_list[1].text
             sheet_id = td_list[0].text
-            logging.info(sheet_id)
+            logger.info(sheet_id)
             self.sheet_list[sheet_id] = {'name': sheet_name, 'link': sheet_url, 'items': {}}
             sheet_r = self.http.getURL(sheet_url)
             sheet_soup = BeautifulSoup(sheet_r.text, 'html.parser')
             sheet_tr_list = sheet_soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
-            logging.info(sheet_tr_list[0].find('td').text)
+            logger.info(sheet_tr_list[0].find('td').text)
             for sheet_tr in sheet_tr_list:
                 sheet_td_list = sheet_tr.find_all('td')
                 if (len(sheet_td_list) > 0):
@@ -134,7 +135,7 @@ class Kirppari():
             trCount += 1
             td_list = tr.find_all('td')
             sale_id = td_list[0].text
-            logging.info('  '+td_list[1].text)
+            logger.info('  '+td_list[1].text)
             if (sale_id not in self.sale_list):
                 newsale = {'row': trCount, 'name': td_list[1].text, 'price': td_list[2].text, 'date': td_list[3].text}
                 self.sale_list[sale_id] = newsale
@@ -148,7 +149,7 @@ class Kirppari():
         s = self.getSheet(sale_id)
         sheetName = s['name']
         nameFromSheet = s['items'][sale_id]
-        logging.debug("New sale: " + nameFromSheet + ", " + sheetName)
+        logger.debug("New sale: " + nameFromSheet + ", " + sheetName)
         return nameFromSheet + ", " + sale['price'] + ', ' + sheetName + ', ' + sale_id + ', ' + sale['date']
 
 
@@ -182,12 +183,12 @@ def resend(c, kirppari):
     if (c > 0):
         m = "Tässä " + str(c) + " viimeisintä myyntiä.\n"
         sortedValues = sorted(kirppari.sale_list.items(), key=lambda x: x[1]['row'], reverse=False)
-        logging.info(sortedValues)
+        logger.info(sortedValues)
         for key, sale in sortedValues:
             c = c - 1
             if (c < 0):
                 break
-            logging.info("RESENDING " + sale['name'])    
+            logger.info("RESENDING " + sale['name'])    
             m += kirppari.makeSaleString(key) + "\n"
         kirppari.stack.send(kirppari.target, m)
 
@@ -195,7 +196,7 @@ def testTime():
     now = datetime.now().strftime('%H%M')
     if '0855' <= now <= '1905':
         return True
-    logging.info("Not open: not checking.")
+    logger.info("Not open: not checking.")
     return False
 
 def loop(target, stack, kirppari_http):
@@ -210,9 +211,9 @@ def loop(target, stack, kirppari_http):
     kirppari.saveLists()
 
     sortedValues = sorted(kirppari.sale_list.items(), key=lambda x: x[1]['row'], reverse=True)
-    logging.info(sortedValues)
+    logger.info(sortedValues)
     for key, sale in sortedValues:
-        logging.info(str(sale['row']) + ": " + kirppari.getSheet(key)['items'][key] + ", " + str(sale['price']))
+        logger.info(str(sale['row']) + ": " + kirppari.getSheet(key)['items'][key] + ", " + str(sale['price']))
 
     return kirppari
 
@@ -238,9 +239,9 @@ def main():
         cfg['yowsup']['phone'], 
         cfg['yowsup']['password'])
     stack = YowsupKirppariStack(credentials, kirppari_http)
-    logging.info("Stack start...")
+    logger.info("Stack start...")
     stack.start()
-    logging.info("Stack start... Done")
+    logger.info("Stack start... Done")
     time.sleep(15)
 
 
@@ -275,7 +276,13 @@ def main():
             time.sleep(1)
     except KeyboardInterrupt:
         stack.stop()
-        logging.info("End")
+        logger.info("End")
+    except Exception as e:
+        logging.exception("Error happened within loop")
+        if 'debugtarget' in cfg['main']:
+            stack.send(cfg['main']['debugtarget'], "Error: " + str(e))
+            time.sleep(20)
+        stack.stop()
 
 if __name__ == "__main__":
     main()
