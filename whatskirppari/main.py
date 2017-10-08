@@ -20,12 +20,12 @@ class KirppariHTTP():
         'DNT': '1', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'en-US,en;q=0.8,fi;q=0.6', 'Upgrade-Insecure-Requests': '1', 
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        'Referer': 'https://www.kirpparikalle.net/sovellus/index.php?page=myreservations',  'Connection': 'keep-alive'
+        'Referer': 'http://www.kirpparikalle.net/sovellus/index.php?page=myreservations',  'Connection': 'keep-alive'
         }
-    main_url = 'https://www.kirpparikalle.net/sovellus/'
-    login_url = 'https://www.kirpparikalle.net/sovellus/rpc.php?request=json_login&method=username_login&lang=fi&company_id=1'
-    sales_url = 'https://www.kirpparikalle.net/sovellus/index.php?page=mysales'
-    lists_url = 'https://www.kirpparikalle.net/sovellus/index.php?page=myproducts'
+    main_url = 'http://www.kirpparikalle.net/sovellus/'
+    login_url = 'http://www.kirpparikalle.net/sovellus/rpc.php?request=json_login&method=username_login&lang=fi&company_id=1'
+    sales_url = 'http://www.kirpparikalle.net/sovellus/index.php?page=mysales'
+    lists_url = 'http://www.kirpparikalle.net/sovellus/index.php?page=myproducts'
 
     def __init__(self, phpsessid, username, password):
         self.headers['Cookie'] = 'PHPSESSID=' + phpsessid
