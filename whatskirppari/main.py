@@ -55,13 +55,11 @@ class Kirppari():
 
     http = None
     config = None
-    target = ""
     sheet_list = {}
     sale_list = {}
 
-    def __init__(self, target, http):
+    def __init__(self, http):
         self.http = http
-        self.target = target
         self.getLists()
 
     def getSheet(self, item_id):
@@ -96,7 +94,11 @@ class Kirppari():
             self.sheet_list[sheet_id] = {'name': sheet_name, 'link': sheet_url, 'items': {}}
             sheet_r = self.http.getURL(sheet_url)
             sheet_soup = BeautifulSoup(sheet_r.text, 'html.parser')
-            sheet_tr_list = sheet_soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
+            try:
+                sheet_tr_list = sheet_soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
+            except Exception:
+                logger.warning('Could not read sheet %s', sheet_url)
+                continue
             logger.info(sheet_tr_list[0].find('td').text)
             for sheet_tr in sheet_tr_list:
                 sheet_td_list = sheet_tr.find_all('td')
@@ -110,25 +112,26 @@ class Kirppari():
                 self.sale_list = json.load(input)
         except:
             with open("kirppari.json", 'w') as output:
-                json.dump(self.sale_list, output)
+                json.dump(self.sale_list, output, indent=4)
         try:
             with open("kirppari_lists.json", 'r') as input:
                 self.sheet_list = json.load(input)
         except:
             with open("kirppari_lists.json", 'w') as output:
-                json.dump(self.sheet_list, output)
+                json.dump(self.sheet_list, output, indent=4)
 
     def saveLists(self):
         with open("kirppari.json", 'w') as output:
-            json.dump(self.sale_list, output, ensure_ascii=False)
+            json.dump(self.sale_list, output, ensure_ascii=False, indent=4)
         with open("kirppari_lists.json", 'w') as output:
-            json.dump(self.sheet_list, output, ensure_ascii=False)
+            json.dump(self.sheet_list, output, ensure_ascii=False, indent=4)
 
     def getSales(self):
         r = self.http.getSales()
         soup = BeautifulSoup(r.text, 'html.parser')
         tr_list = soup.find('table', attrs={'class': 'normal'}).find('tbody').find_all('tr')
         trCount = 0
+        new_sales = {}
         for tr in tr_list:
             trCount += 1
             td_list = tr.find_all('td')
@@ -137,10 +140,10 @@ class Kirppari():
             if (sale_id not in self.sale_list):
                 newsale = {'row': trCount, 'name': td_list[1].text, 'price': td_list[2].text, 'date': td_list[3].text}
                 self.sale_list[sale_id] = newsale
-                # FIXME Send message here
+                new_sales[sale_id] = newsale
             else:
                 self.sale_list[sale_id]['row'] = trCount
-        return self.sale_list
+        return new_sales
 
     def makeSaleString(self, sale_id):
         sale = self.sale_list[sale_id]
@@ -155,7 +158,7 @@ def getConfig(configpath):
     global global_config
     c = configparser.ConfigParser()
     c.read(configpath)
-    if ('main' in c and 'yowsup' in c):
+    if ('main' in c):
         global_config = c
         return c
     else:
@@ -165,13 +168,6 @@ def getConfig(configpath):
             'username': '',
             'password': '',
             'groupid': '',
-        }
-        c.add_section('yowsup')
-        c['main'] = {
-            'cc': '',
-            'phone': '',
-            'id': '',
-            'password': ''
         }
         with open('config.ini', 'w') as f:
             c.write(f)
@@ -197,15 +193,17 @@ def testTime():
     logger.info("Not open: not checking.")
     return False
 
-def loop(target, kirppari_http):
+def loop(kirppari_http):
     if (not testTime()):
         return
 
     kirppari = Kirppari(
-        target=target, 
         http=kirppari_http)
-    kirppari.getSales()
+    new_sales = kirppari.getSales()
     kirppari.saveLists()
+
+    for key, value in new_sales.items():
+        print("New sale! {}: {}".format(value['name'], value['price']))
 
     sortedValues = sorted(kirppari.sale_list.items(), key=lambda x: x[1]['row'], reverse=True)
     logger.info(sortedValues)
@@ -217,9 +215,6 @@ def loop(target, kirppari_http):
 
 def main():
     parser = argparse.ArgumentParser(description='Get new sales from kirpparikalle  ')
-    parser.add_argument('-t', '--target', default='', 
-        help='Phone number to send', 
-        required=False)
     parser.add_argument('-r', '--resend', default=0, type=int, 
         help='Number of last sales to resend', 
         required=False)
@@ -238,30 +233,19 @@ def main():
         cfg['main']['username'], 
         cfg['main']['password'])
 
-    credentials = (
-        cfg['yowsup']['phone'], 
-        cfg['yowsup']['password'])
-
-    target = args['target']
-    if (target == ""):
-        target = cfg['main']['groupid']
-
     kirppari = loop(
-        target=target, 
         kirppari_http=kirppari_http)
 
     c = args['resend']
     if (c > 0):
         if (not kirppari):
             kirppari = Kirppari(
-                target=target, 
                 http=kirppari_http)
             kirppari.getSales()
         resend(c, kirppari)
         time.sleep(5)
 
     schedule.every(5).minutes.do(loop, 
-        target=target, 
         kirppari_http=kirppari_http)
 
     try:
