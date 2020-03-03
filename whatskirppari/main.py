@@ -6,7 +6,6 @@ import json
 import logging
 import argparse
 import configparser
-from .stack import YowsupKirppariStack
 import time
 import schedule
 from datetime import datetime
@@ -57,12 +56,10 @@ class Kirppari():
     http = None
     config = None
     target = ""
-    stack = None
     sheet_list = {}
     sale_list = {}
 
-    def __init__(self, target, stack, http):
-        self.stack = stack
+    def __init__(self, target, http):
         self.http = http
         self.target = target
         self.getLists()
@@ -140,7 +137,7 @@ class Kirppari():
             if (sale_id not in self.sale_list):
                 newsale = {'row': trCount, 'name': td_list[1].text, 'price': td_list[2].text, 'date': td_list[3].text}
                 self.sale_list[sale_id] = newsale
-                self.stack.send(self.target, "Myyty! " + self.makeSaleString(sale_id))
+                # FIXME Send message here
             else:
                 self.sale_list[sale_id]['row'] = trCount
         return self.sale_list
@@ -191,7 +188,7 @@ def resend(c, kirppari):
                 break
             logger.info("RESENDING " + sale['name'])    
             m += kirppari.makeSaleString(key) + "\n"
-        kirppari.stack.send(kirppari.target, m)
+        # FIXME Send here
 
 def testTime():
     now = datetime.now().strftime('%H%M')
@@ -200,13 +197,12 @@ def testTime():
     logger.info("Not open: not checking.")
     return False
 
-def loop(target, stack, kirppari_http):
+def loop(target, kirppari_http):
     if (not testTime()):
         return
 
     kirppari = Kirppari(
         target=target, 
-        stack=stack, 
         http=kirppari_http)
     kirppari.getSales()
     kirppari.saveLists()
@@ -245,13 +241,6 @@ def main():
     credentials = (
         cfg['yowsup']['phone'], 
         cfg['yowsup']['password'])
-    stack = YowsupKirppariStack(credentials, kirppari_http)
-    logger.info("Stack start...")
-    stack.start()
-    if not DEBUG_MODE:
-        time.sleep(15)
-    logger.info("Stack start... Done")
-
 
     target = args['target']
     if (target == ""):
@@ -259,7 +248,6 @@ def main():
 
     kirppari = loop(
         target=target, 
-        stack=stack, 
         kirppari_http=kirppari_http)
 
     c = args['resend']
@@ -267,7 +255,6 @@ def main():
         if (not kirppari):
             kirppari = Kirppari(
                 target=target, 
-                stack=stack, 
                 http=kirppari_http)
             kirppari.getSales()
         resend(c, kirppari)
@@ -275,7 +262,6 @@ def main():
 
     schedule.every(5).minutes.do(loop, 
         target=target, 
-        stack=stack, 
         kirppari_http=kirppari_http)
 
     try:
@@ -283,14 +269,9 @@ def main():
             schedule.run_pending()
             time.sleep(1)
     except KeyboardInterrupt:
-        stack.stop()
         logger.info("End")
     except Exception as e:
         logging.exception("Error happened within loop")
-        if 'debugtarget' in cfg['main']:
-            stack.send(cfg['main']['debugtarget'], "Error: " + str(e))
-            time.sleep(20)
-        stack.stop()
 
 if __name__ == "__main__":
     main()
