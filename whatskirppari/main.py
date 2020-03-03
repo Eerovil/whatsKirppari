@@ -8,12 +8,33 @@ import argparse
 import configparser
 import time
 import schedule
+import smtplib
 from datetime import datetime
 
 logging.basicConfig(filename='example.log', format='%(asctime)s - %(name)s %(lineno)d - %(levelname)s:%(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 global_config = None
 DEBUG_MODE = False
+
+class Email():
+    def __init__(self, user, password, sender, recipient):
+        self.user = user
+        self.password = password
+        self.sender = sender
+        self.recipient = recipient
+    
+    def send(self, message):
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.ehlo()
+        server.starttls()
+        server.login(self.user, self.password)
+        message_lines = message.split("\n")
+        message = "Subject:[Kirppari] " + message_lines[0] + "\n\n" + "\n".join(message_lines[1:])
+        logger.info('Sending mail to %s: %s ', self.recipient, message)
+        server.sendmail(self.sender, self.recipient, message.encode('utf8'))
+        server.close()
+        logger.info('successfully sent the mail')
+
 
 class KirppariHTTP():
     headers = {
@@ -58,8 +79,9 @@ class Kirppari():
     sheet_list = {}
     sale_list = {}
 
-    def __init__(self, http):
+    def __init__(self, http, email):
         self.http = http
+        self.email = email
         self.getLists()
 
     def getSheet(self, item_id):
@@ -87,7 +109,7 @@ class Kirppari():
             if (amount < 0):
                 return
             td_list = tr.find_all('td')
-            sheet_url = td_list[8].find('a')['href']
+            sheet_url = td_list[9].find('a')['href']
             sheet_name = td_list[1].text
             sheet_id = td_list[0].text
             logger.info(sheet_id)
@@ -105,6 +127,8 @@ class Kirppari():
                 if (len(sheet_td_list) > 0):
                     item_id = sheet_td_list[0].text
                     self.sheet_list[sheet_id]['items'][item_id] = sheet_td_list[1].text
+        logger.debug("self.sheet_list: %s", self.sheet_list)
+        self.saveLists()
 
     def getLists(self):
         try:
@@ -150,7 +174,7 @@ class Kirppari():
         s = self.getSheet(sale_id)
         sheetName = s['name']
         nameFromSheet = s['items'][sale_id]
-        logger.debug("New sale: " + nameFromSheet + ", " + sheetName)
+        logger.info("New sale: " + nameFromSheet + ", " + sheetName)
         return nameFromSheet + ", " + sale['price'] + ', ' + sheetName + ', ' + sale_id + ', ' + sale['date']
 
 
@@ -169,6 +193,13 @@ def getConfig(configpath):
             'password': '',
             'groupid': '',
         }
+        c.add_section('email')
+        c['email'] = {
+            'user': '',
+            'password': '',
+            'sender': '',
+            'recipient': '',
+        }
         with open('config.ini', 'w') as f:
             c.write(f)
     raise Exception("No config")
@@ -184,7 +215,8 @@ def resend(c, kirppari):
                 break
             logger.info("RESENDING " + sale['name'])    
             m += kirppari.makeSaleString(key) + "\n"
-        # FIXME Send here
+        logger.info(m)
+        kirppari.email.send(m)
 
 def testTime():
     now = datetime.now().strftime('%H%M')
@@ -193,17 +225,19 @@ def testTime():
     logger.info("Not open: not checking.")
     return False
 
-def loop(kirppari_http):
+def loop(kirppari_http, email):
     if (not testTime()):
         return
 
     kirppari = Kirppari(
-        http=kirppari_http)
+        http=kirppari_http,
+        email=email)
     new_sales = kirppari.getSales()
     kirppari.saveLists()
 
     for key, value in new_sales.items():
         print("New sale! {}: {}".format(value['name'], value['price']))
+        kirppari.email.send(kirppari.makeSaleString(key))
 
     sortedValues = sorted(kirppari.sale_list.items(), key=lambda x: x[1]['row'], reverse=True)
     logger.info(sortedValues)
@@ -233,20 +267,30 @@ def main():
         cfg['main']['username'], 
         cfg['main']['password'])
 
+    email = Email(
+        cfg['email']['user'], 
+        cfg['email']['password'], 
+        cfg['email']['sender'], 
+        json.loads(cfg['email']['recipient']),
+    )
+
     kirppari = loop(
-        kirppari_http=kirppari_http)
+        kirppari_http=kirppari_http,
+        email=email)
 
     c = args['resend']
     if (c > 0):
         if (not kirppari):
             kirppari = Kirppari(
-                http=kirppari_http)
+                http=kirppari_http,
+                email=email)
             kirppari.getSales()
         resend(c, kirppari)
         time.sleep(5)
 
     schedule.every(5).minutes.do(loop, 
-        kirppari_http=kirppari_http)
+        kirppari_http=kirppari_http,
+        email=email)
 
     try:
         while True:
