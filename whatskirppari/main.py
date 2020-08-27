@@ -10,11 +10,18 @@ import time
 import schedule
 import smtplib
 from datetime import datetime
+from collections import OrderedDict
 
 logging.basicConfig(filename='example.log', format='%(asctime)s - %(name)s %(lineno)d - %(levelname)s:%(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 global_config = None
 DEBUG_MODE = False
+
+def order_dict(_dict):
+    new_dict = OrderedDict()
+    for key in sorted(_dict.keys()):
+        new_dict[key] = _dict[key]
+    return new_dict
 
 class Email():
     def __init__(self, user, password, sender, recipient):
@@ -113,6 +120,8 @@ class Kirppari():
             sheet_name = td_list[1].text
             sheet_id = td_list[0].text
             logger.info(sheet_id)
+            if sheet_id in self.sheet_list:
+                continue
             self.sheet_list[sheet_id] = {'name': sheet_name, 'link': sheet_url, 'items': {}}
             sheet_r = self.http.getURL(sheet_url)
             sheet_soup = BeautifulSoup(sheet_r.text, 'html.parser')
@@ -127,6 +136,7 @@ class Kirppari():
                 if (len(sheet_td_list) > 0):
                     item_id = sheet_td_list[0].text
                     self.sheet_list[sheet_id]['items'][item_id] = sheet_td_list[1].text
+            self.sheet_list[sheet_id]['items'] = order_dict(self.sheet_list[sheet_id]['items'])
         logger.debug("self.sheet_list: %s", self.sheet_list)
         self.saveLists()
 
@@ -140,6 +150,8 @@ class Kirppari():
         try:
             with open("kirppari_lists.json", 'r') as input:
                 self.sheet_list = json.load(input)
+                for key in self.sheet_list.keys():
+                    self.sheet_list[key]['items'] = order_dict(self.sheet_list[key]['items'])
         except:
             with open("kirppari_lists.json", 'w') as output:
                 json.dump(self.sheet_list, output, indent=4)
@@ -246,6 +258,18 @@ def loop(kirppari_http, email):
 
     return kirppari
 
+class Telegram():
+    def __init__(self, BOT_TOKEN, chat_id):
+        self.BOT_TOKEN = BOT_TOKEN
+        self.chat_id = chat_id
+
+    def send(self, bot_message):
+        send_text = (
+            'https://api.telegram.org/bot' + self.BOT_TOKEN + '/sendMessage?chat_id=' + self.chat_id +
+            '&text=' + bot_message
+        )
+        response = requests.get(send_text)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Get new sales from kirpparikalle  ')
@@ -274,23 +298,32 @@ def main():
         json.loads(cfg['email']['recipient']),
     )
 
+    telegram = Telegram(
+        cfg['telegram']['BOT_TOKEN'],
+        cfg['telegram']['chat_id']
+    )
+    debug_telegram = Telegram(
+        cfg['telegram']['BOT_TOKEN'],
+        cfg['telegram']['debug_chat']
+    )
+
     kirppari = loop(
         kirppari_http=kirppari_http,
-        email=email)
+        email=telegram)
 
     c = args['resend']
     if (c > 0):
         if (not kirppari):
             kirppari = Kirppari(
                 http=kirppari_http,
-                email=email)
+                email=telegram)
             kirppari.getSales()
         resend(c, kirppari)
         time.sleep(5)
 
     schedule.every(5).minutes.do(loop, 
         kirppari_http=kirppari_http,
-        email=email)
+        email=telegram)
 
     try:
         while True:
@@ -300,6 +333,7 @@ def main():
         logger.info("End")
     except Exception as e:
         logging.exception("Error happened within loop")
+        debug_telegram.send("whatsKirppari error: {}".format(e))
 
 if __name__ == "__main__":
     main()
